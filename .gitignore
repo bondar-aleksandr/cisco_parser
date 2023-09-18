@@ -1,0 +1,9 @@
+*.txt
+*.csv
+*.exe
+*.json
+*.cfg
+*.pdf
+.idea
+.vscode
+test_data/
