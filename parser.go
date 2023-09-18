@@ -126,7 +126,9 @@ func getIP(s string, d string) (ip_addr, subnet string) {
 	return
 }
 
-func Parsing(r io.Reader, d string) (CiscoInterfaceMap, error) {
+// ParseInterfaces func reads config from r, and parses interfaces from it to 'CiscoInterfaceMap' data type.
+// Platform type d specifies config origin (IOS or NXOS)
+func ParseInterfaces(r io.Reader, d string) (CiscoInterfaceMap, error) {
 
 	interfaces := CiscoInterfaceMap{}
 	var intf_name string
