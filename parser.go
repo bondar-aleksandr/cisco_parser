@@ -19,6 +19,7 @@ import (
 type CiscoInterface struct {
 	Name        string
 	Description string
+	Encapsulation string
 	Ip_addr     string
 	Subnet      string
 	Vrf         string
@@ -28,7 +29,7 @@ type CiscoInterface struct {
 }
 
 func (c CiscoInterface) ToSlice() []string {
-	return []string{c.Name, c.Description, c.Ip_addr, c.Subnet, c.Vrf, c.Mtu, c.ACLin, c.ACLout}
+	return []string{c.Name, c.Description, c.Encapsulation, c.Ip_addr, c.Subnet, c.Vrf, c.Mtu, c.ACLin, c.ACLout}
 }
 
 type CiscoInterfaceMap map[string]*CiscoInterface
@@ -76,6 +77,7 @@ func (c CiscoInterfaceMap) ToCSV(w io.Writer) {
 const (
 	INTF_REGEXP   = `^interface (\S+)`
 	DESC_REGEXP   = ` {1,2}description (.*)$`
+	ENCAP_REGEXP  = ` {1,2}encapsulation (.+)`
 	IP_REGEXP     = ` {1,2}ip(?:v4)? address (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?: secondary)?`
 	VRF_REGEXP    = ` {1,2}vrf(?: forwarding| member)? (\S+)`
 	MTU_REGEXP    = ` {1,2}(?:ip )?mtu (\S+)`
@@ -86,6 +88,7 @@ const (
 var (
 	intf_compiled   = regexp.MustCompile(INTF_REGEXP)
 	desc_compiled   = regexp.MustCompile(DESC_REGEXP)
+	encap_compiled  = regexp.MustCompile(ENCAP_REGEXP)
 	ip_compiled     = regexp.MustCompile(IP_REGEXP)
 	vrf_compiled    = regexp.MustCompile(VRF_REGEXP)
 	mtu_compiled    = regexp.MustCompile(MTU_REGEXP)
@@ -159,6 +162,10 @@ func ParseInterfaces(r io.Reader, d string) (CiscoInterfaceMap, error) {
 				intf_desc := desc_compiled.FindStringSubmatch(line)[1]
 				interfaces[intf_name].Description = intf_desc
 
+			case strings.Contains(line, ` encapsulation`):
+				encap := encap_compiled.FindStringSubmatch(line)[1]
+				interfaces[intf_name].Encapsulation = encap
+
 			case strings.Contains(line, `ip address `) || strings.Contains(line, `ipv4 address `):
 				ip_cidr, prefix := getIP(scanner.Text(), d)
 				interfaces[intf_name].Ip_addr = ip_cidr
@@ -186,7 +193,7 @@ func ParseInterfaces(r io.Reader, d string) (CiscoInterfaceMap, error) {
 		}
 	}
 	if len(interfaces) == 0 {
-		err := errors.New("Parsing failed")
+		err := errors.New("parsing failed")
 		log.Error("Parsing failed! got 0 interfaces!")
 		return interfaces, err
 	}
