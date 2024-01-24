@@ -2,7 +2,6 @@ package cisco_parser
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -14,13 +13,13 @@ var testDataDir = "./test_data"
 func getCiscoInterfaceMap(filename string) CiscoInterfaceMap {
 	jsonFile, err := os.ReadFile(filename)
 	if err != nil {
-		log.Fatalf("Cannot open file %s", filename)
+		infoLogger.Fatalf("Cannot open file %s", filename)
 	}
 
 	var result CiscoInterfaceMap
 	err = json.Unmarshal(jsonFile, &result)
 	if err != nil {
-		log.Fatalf("Cannot deserialize file %s into JSON", filename)
+		infoLogger.Fatalf("Cannot deserialize file %s into JSON", filename)
 	}
 	return result
 }
