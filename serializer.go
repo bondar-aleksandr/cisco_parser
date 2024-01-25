@@ -45,9 +45,8 @@ func (s *Serializer) ToCSV() error {
 		return fmt.Errorf("can't get interfaces names: %w", err)
 	}
 
-	for _, v := range interfaces {
-		//TODO: use getter for fields instead
-		line := s.device.interfaces[v].getFileds()
+	for _, intf := range interfaces {
+		line := s.device.interfaces[intf].getValues()
 		cw.Write(line)
 	}
 	cw.Flush()

@@ -3,13 +3,12 @@ package cisco_parser
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/netip"
 	"os"
-	// "reflect"
 	"regexp"
-	// "sort"
 	"strings"
 )
 
@@ -19,92 +18,79 @@ var (
 	errorLogger *log.Logger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 )
 
-var ErrParsingFailed = errors.New("parsing failed")
-
-
-// type CiscoInterfaceMap map[string]*CiscoInterface
-
-// func (c CiscoInterfaceMap) GetSortedKeys() []string {
-// 	keys := make([]string, 0)
-// 	for k := range c {
-// 		keys = append(keys, k)
-// 	}
-// 	sort.Strings(keys)
-// 	return keys
-// }
-
-// func (c CiscoInterfaceMap) getFields() []string {
-// 	fields := reflect.VisibleFields(reflect.TypeOf(CiscoInterface{}))
-// 	result := []string{}
-// 	for _, v := range fields {
-// 		result = append(result, v.Name)
-// 	}
-// 	return result
-// }
-
+var ErrParsigFailed = errors.New("no interfaces found in config")
 
 
 const (
-	INTF_REGEXP   = `^interface (\S+)`
-	DESC_REGEXP   = ` {1,2}description (.*)$`
-	ENCAP_REGEXP  = ` {1,2}encapsulation (.+)`
-	IP_REGEXP     = ` {1,2}ip(?:v4)? address (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?: secondary)?`
-	VRF_REGEXP    = ` {1,2}vrf(?: forwarding| member)? (\S+)`
-	MTU_REGEXP    = ` {1,2}(?:ip )?mtu (\S+)`
-	ACLIN_REGEXP  = ` {1,2}access-group (\S+) in`
-	ACLOUT_REGEXP = ` {1,2}access-group (\S+) out`
+	intf_regexp   = `^interface (\S+)`
+	desc_regexp   = ` {1,2}description (.*)$`
+	encap_regexp  = ` {1,2}encapsulation (.+)`
+	ip_regexp     = ` {1,2}ip(?:v4)? address (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?: secondary)?`
+	ip_regexp_nxos = ` {2}ip address (\S+)`
+	vrf_regexp    = ` {1,2}vrf(?: forwarding| member)? (\S+)`
+	mtu_regexp    = ` {1,2}(?:ip )?mtu (\S+)`
+	aclin_regexp  = ` {1,2}access-group (\S+) in`
+	aclout_regexp = ` {1,2}access-group (\S+) out`
 )
 
 var (
-	intf_compiled   = regexp.MustCompile(INTF_REGEXP)
-	desc_compiled   = regexp.MustCompile(DESC_REGEXP)
-	encap_compiled  = regexp.MustCompile(ENCAP_REGEXP)
-	ip_compiled     = regexp.MustCompile(IP_REGEXP)
-	vrf_compiled    = regexp.MustCompile(VRF_REGEXP)
-	mtu_compiled    = regexp.MustCompile(MTU_REGEXP)
-	aclin_compiled  = regexp.MustCompile(ACLIN_REGEXP)
-	aclout_compiled = regexp.MustCompile(ACLOUT_REGEXP)
+	intf_compiled   = regexp.MustCompile(intf_regexp)
+	desc_compiled   = regexp.MustCompile(desc_regexp)
+	encap_compiled  = regexp.MustCompile(encap_regexp)
+	ip_compiled     = regexp.MustCompile(ip_regexp)
+	ip_compiled_nxos     = regexp.MustCompile(ip_regexp_nxos)
+	vrf_compiled    = regexp.MustCompile(vrf_regexp)
+	mtu_compiled    = regexp.MustCompile(mtu_regexp)
+	aclin_compiled  = regexp.MustCompile(aclin_regexp)
+	aclout_compiled = regexp.MustCompile(aclout_regexp)
 )
 
 
-
-func getIP(s string, d string) (ip_addr, subnet string, subnetRaw netip.Prefix) {
+// getIP parses ip address and mask into strings and into netip.Prefix. Returns the values
+// and error if any occured duing parsing.
+func getIP(s string, d string) (ip_addr, subnet string, subnetRaw netip.Prefix, err error) {
+	
+	emptyPrefix := netip.Prefix{}
 
 	if strings.Contains(s, "dhcp") {
-		return "dhcp", "dhcp", netip.Prefix{}
+		return "dhcp", "dhcp", emptyPrefix, nil
 	}
 
 	if d == "ios" {
 		ip_str := ip_compiled.FindStringSubmatch(s)[1]
 		mask_str := ip_compiled.FindStringSubmatch(s)[2]
 		
-		ip := netip.MustParseAddr(ip_str)
+		ip, err := netip.ParseAddr(ip_str)
+		if err != nil {
+			return "", "", emptyPrefix, fmt.Errorf("can't parse IP: %w", err)
+		}
 		mask, _ := net.IPMask(net.ParseIP(mask_str).To4()).Size()
 		prefix := netip.PrefixFrom(ip, mask)
 
-		return prefix.String(), prefix.Masked().String(), prefix.Masked()
+		return prefix.String(), prefix.Masked().String(), prefix.Masked(), nil
 
 	} else if d == "nxos" {
-		ip_str := regexp.MustCompile(` {2}ip address (\S+)`).FindStringSubmatch(s)[1]
-		prefix := netip.MustParsePrefix(ip_str)
-		return ip_str, prefix.Masked().String(), prefix.Masked()
+		ip_str := ip_compiled_nxos.FindStringSubmatch(s)[1]
+		prefix, err := netip.ParsePrefix(ip_str)
+		if err != nil {
+			return "", "", emptyPrefix, fmt.Errorf("can't parse IP: %w", err)
+		}
+		return ip_str, prefix.Masked().String(), prefix.Masked(), nil
 	}
 	return
 }
 
-// ParseInterfaces func reads config from r, and parses interfaces from it to 'CiscoInterfaceMap' data type.
-// Platform type d specifies config origin (IOS or NXOS)
-
-// parse parses config from d.source and populates internal fields "interfaces" and "subnets" 
+// parse parses config from d.source and populates internal fields "interfaces"
+// TBD: populate subnets structure as well
 func(d *Device) parse() error {
 
-	// d.interfaces = CiscoInterfaceMap{}
 	var intf_name string
+	var intf *CiscoInterface
 
 	line_separator := "!"
 	line_ident := " "
 
-	if d.platform == NXOS {
+	if d.platform == nxos {
 		line_separator = ""
 		line_ident = "  "
 	}
@@ -116,42 +102,49 @@ func(d *Device) parse() error {
 		// fmt.Println(line)	// for debug
 
 		if strings.HasPrefix(line, `interface `) { //Enter interface configuration block
-
+			
 			intf_name = intf_compiled.FindStringSubmatch(line)[1]
-			d.interfaces[intf_name] = &CiscoInterface{Name: intf_name}
+			intf = newCiscoInterface(intf_name)
+			if err := d.addInterface(intf); err != nil {
+				return fmt.Errorf("can't parse: %w", err)
+			}
 
 		} else if strings.HasPrefix(line, line_ident) && d.intfAmount() > 0 { //Content inside interface config
 
 			switch {
 			case strings.Contains(line, ` description `):
 				intf_desc := desc_compiled.FindStringSubmatch(line)[1]
-				d.interfaces[intf_name].Description = intf_desc
+				intf.Description = intf_desc
 
 			case strings.Contains(line, ` encapsulation`):
 				encap := encap_compiled.FindStringSubmatch(line)[1]
-				d.interfaces[intf_name].Encapsulation = encap
+				intf.Encapsulation = encap
 
 			case strings.Contains(line, `ip address `) || strings.Contains(line, `ipv4 address `):
-				ip_cidr, prefix, prefixRaw := getIP(scanner.Text(), d.platform)
-				d.interfaces[intf_name].Ip_addr = ip_cidr
-				d.interfaces[intf_name].Subnet = prefix
-				d.interfaces[intf_name].subnetRaw = prefixRaw
+				ip_cidr, prefix, prefixRaw, err := getIP(scanner.Text(), d.platform)
+				if err != nil {
+					ip_cidr, prefix = "FAILED TO PARSE", "FAILED TO PARSE"
+					errorLogger.Println("failed to parse ip:", err)
+				}
+				intf.Ip_addr = ip_cidr
+				intf.Subnet = prefix
+				intf.SubnetRaw = prefixRaw
 
 			case strings.Contains(line, ` vrf `):
 				vrf := vrf_compiled.FindStringSubmatch(line)[1]
-				d.interfaces[intf_name].Vrf = vrf
+				intf.Vrf = vrf
 
 			case strings.Contains(line, ` mtu `):
 				mtu := mtu_compiled.FindStringSubmatch(line)[1]
-				d.interfaces[intf_name].Mtu = mtu
+				intf.Mtu = mtu
 
 			case strings.Contains(line, `access-group `) && strings.HasSuffix(line, ` in`):
 				aclin := aclin_compiled.FindStringSubmatch(line)[1]
-				d.interfaces[intf_name].ACLin = aclin
+				intf.ACLin = aclin
 
 			case strings.Contains(line, `access-group `) && strings.HasSuffix(line, ` out`):
 				aclout := aclout_compiled.FindStringSubmatch(line)[1]
-				d.interfaces[intf_name].ACLout = aclout
+				intf.ACLout = aclout
 			}
 
 		} else if !(line == line_separator || strings.HasPrefix(line, `interface`)) && d.intfAmount() > 0 { //Exit interface configuration block
@@ -160,7 +153,7 @@ func(d *Device) parse() error {
 	}
 	if d.intfAmount() == 0 {
 		errorLogger.Println("Parsing failed! got 0 interfaces!")
-		return ErrParsingFailed
+		return ErrParsigFailed
 	}
 	infoLogger.Printf("parsing finished, got %v interfaces", d.intfAmount())
 	return nil
