@@ -4,24 +4,26 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"reflect"
 	"testing"
+	"fmt"
 )
 
 var testDataDir = "./test_data"
 
-func getCiscoInterfaceMap(filename string) CiscoInterfaceMap {
+func deviceFromFile(filename string) *Device {
 	jsonFile, err := os.ReadFile(filename)
 	if err != nil {
 		infoLogger.Fatalf("Cannot open file %s", filename)
 	}
 
-	var result CiscoInterfaceMap
-	err = json.Unmarshal(jsonFile, &result)
+	device := &Device{}
+	err = json.Unmarshal(jsonFile, device)
 	if err != nil {
 		infoLogger.Fatalf("Cannot deserialize file %s into JSON", filename)
 	}
-	return result
+	return device
 }
 
 func Test_parsing(t *testing.T) {
@@ -31,37 +33,45 @@ func Test_parsing(t *testing.T) {
 	ios_ifile_routerXR := filepath.Join(testDataDir, "ASR-P.txt")
 	nxos_ifile := filepath.Join(testDataDir, "dc0-n9k-d_23.08.txt")
 
-	ios_map_router := getCiscoInterfaceMap(FileExtReplace(ios_ifile_router, "json"))
-	ios_map_switch := getCiscoInterfaceMap(FileExtReplace(ios_ifiile_switch, "json"))
-	ios_map_routerXR := getCiscoInterfaceMap(FileExtReplace(ios_ifile_routerXR, "json"))
-	nxos_map := getCiscoInterfaceMap(FileExtReplace(nxos_ifile, "json"))
+	ios_device_router := deviceFromFile(fileExtReplace(ios_ifile_router, "json"))
+	ios_device_switch := deviceFromFile(fileExtReplace(ios_ifiile_switch, "json"))
+	ios_device_routerXR := deviceFromFile(fileExtReplace(ios_ifile_routerXR, "json"))
+	nxos_device := deviceFromFile(fileExtReplace(nxos_ifile, "json"))
 
 	configs := []struct {
 		name     string
 		ifile    string
-		dev_type string
-		expected CiscoInterfaceMap
+		platform string
+		expected *Device
 	}{
-		{name: "ios-router", ifile: ios_ifile_router, dev_type: "ios", expected: ios_map_router},
-		{name: "ios-L3switch", ifile: ios_ifiile_switch, dev_type: "ios", expected: ios_map_switch},
-		{name: "ios-XR", ifile: ios_ifile_routerXR, dev_type: "ios", expected: ios_map_routerXR},
-		{name: "NXOS", ifile: nxos_ifile, dev_type: "nxos", expected: nxos_map},
+		{name: "ios-router", ifile: ios_ifile_router, platform: "ios", expected: ios_device_router},
+		{name: "ios-L3switch", ifile: ios_ifiile_switch, platform: "ios", expected: ios_device_switch},
+		{name: "ios-XR", ifile: ios_ifile_routerXR, platform: "ios", expected: ios_device_routerXR},
+		{name: "NXOS", ifile: nxos_ifile, platform: "nxos", expected: nxos_device},
 	}
 
 	for _, v := range configs {
 
 		ifile := v.ifile
-		device := v.dev_type
-		target_map := v.expected
+		platform := v.platform
+		target_device := v.expected
 		f, err := os.Open(ifile)
 		if err != nil {
 			t.Errorf("Cannot open configuration file %s because of %q", ifile, err)
 		}
+		device, _ := NewDevice(f, platform)
+		if err = device.parse(); err != nil {
+			t.Errorf("can't parse config: %s", err)
+		}
 
-		interface_map, _ := ParseInterfaces(f, device)
-		eq := reflect.DeepEqual(interface_map, target_map)
+		eq := reflect.DeepEqual(device, target_device)
 		if !eq {
 			t.Errorf("%s: parsed config doesn't correspond target value", v.name)
 		}
 	}
+}
+
+func fileExtReplace(f string, ex string) string {
+	bareName := strings.TrimSuffix(f, filepath.Ext(f))
+	return fmt.Sprintf("%s.%s", bareName, ex)
 }
