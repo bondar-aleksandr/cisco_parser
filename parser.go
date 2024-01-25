@@ -14,7 +14,7 @@ import (
 
 var (
 	infoLogger  *log.Logger = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
-	// warnLogger *log.Logger = log.New(os.Stdout, "WARNING: ", log.Ldate|log.Ltime|log.Lshortfile)
+	warnLogger *log.Logger = log.New(os.Stdout, "WARNING: ", log.Ldate|log.Ltime|log.Lshortfile)
 	errorLogger *log.Logger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 )
 
@@ -124,11 +124,11 @@ func(d *Device) parse() error {
 				ip_cidr, prefix, prefixRaw, err := getIP(scanner.Text(), d.platform)
 				if err != nil {
 					ip_cidr, prefix = "FAILED TO PARSE", "FAILED TO PARSE"
-					errorLogger.Println("failed to parse ip:", err)
+					warnLogger.Println("failed to parse ip:", err)
 				}
 				intf.Ip_addr = ip_cidr
 				intf.Subnet = prefix
-				intf.SubnetRaw = prefixRaw
+				intf.subnetRaw = prefixRaw
 
 			case strings.Contains(line, ` vrf `):
 				vrf := vrf_compiled.FindStringSubmatch(line)[1]
@@ -155,6 +155,7 @@ func(d *Device) parse() error {
 		errorLogger.Println("Parsing failed! got 0 interfaces!")
 		return ErrParsigFailed
 	}
+	d.parsed = true
 	infoLogger.Printf("parsing finished, got %v interfaces", d.intfAmount())
 	return nil
 }

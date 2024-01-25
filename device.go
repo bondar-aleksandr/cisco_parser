@@ -18,6 +18,7 @@ var (
 	ErrPlatformUnknown = errors.New("platform unknown")
 )
 
+// will be used in compare subnets feature
 type subnetVrf struct {
 	subnet netip.Prefix
 	vrf string
@@ -27,7 +28,8 @@ type subnetVrf struct {
 type Device struct {
 	source io.Reader
 	platform string
-	interfaces map[string]*CiscoInterface
+	parsed bool
+	Interfaces map[string]*CiscoInterface
 	subnets map[subnetVrf]string
 }
 
@@ -46,7 +48,8 @@ func NewDevice(s io.Reader, p string) (*Device, error) {
 	return &Device{
 		source: s,
 		platform: platform,
-		interfaces: make(map[string]*CiscoInterface),
+		parsed: false,
+		Interfaces: make(map[string]*CiscoInterface),
 		subnets: make(map[subnetVrf]string),
 	}, nil
 }
@@ -55,9 +58,9 @@ func NewDevice(s io.Reader, p string) (*Device, error) {
 // addInterface adds CiscoInterface object to device.interfaces structure.
 // Returns error if interface with the same name already there
 func(d *Device) addInterface(intf *CiscoInterface) error {
-	_, exists := d.interfaces[intf.Name]
+	_, exists := d.Interfaces[intf.Name]
 	if !exists {
-		d.interfaces[intf.Name] = intf
+		d.Interfaces[intf.Name] = intf
 		return nil
 	} else {
 		return ErrDublicateInterface
@@ -67,12 +70,12 @@ func(d *Device) addInterface(intf *CiscoInterface) error {
 // getIntfFields returns slice of Ciscointerface struct's field names and error if any.
 func(d *Device) getIntfFields() ([]string, error) {
 	result := []string{}
-	if d.intfAmount() == 0 {
+	if !d.parsed {
 		if err := d.parse(); err != nil {
-			return result, fmt.Errorf("can't parse config: %w", err)
+			return result, fmt.Errorf("can't get interface fields: %w", err)
 		}
 	}
-	for _, v := range d.interfaces {
+	for _, v := range d.Interfaces {
 		result = v.getFileds()
 		break
 	}
@@ -82,12 +85,12 @@ func(d *Device) getIntfFields() ([]string, error) {
 // getIntfNames returns ascending ordered slice of device's interface names and error if any
 func(d *Device) getIntfNames() ([]string, error) {
 	result := []string{}
-	if d.intfAmount() == 0 {
+	if !d.parsed {
 		if err := d.parse(); err != nil {
-			return result, fmt.Errorf("can't parse config: %w", err)
+			return result, fmt.Errorf("can't get interfaces names: %w", err)
 		}
 	}
-	for k, _ := range d.interfaces {
+	for k := range d.Interfaces {
 		result = append(result, k)
 	}
 	slices.Sort(result)
@@ -96,5 +99,5 @@ func(d *Device) getIntfNames() ([]string, error) {
 
 // intfAmount returns amount of parsed interfaces
 func(d *Device) intfAmount() int {
-	return len(d.interfaces)
+	return len(d.Interfaces)
 }

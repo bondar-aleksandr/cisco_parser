@@ -12,7 +12,7 @@ type CiscoInterface struct {
 	Encapsulation string
 	Ip_addr     string
 	Subnet      string
-	SubnetRaw	netip.Prefix `csv:"skip"`
+	subnetRaw	netip.Prefix `csv:"skip"`
 	Vrf         string
 	Mtu         string
 	ACLin       string
