@@ -7,11 +7,14 @@ import (
 	"fmt"
 )
 
+// Serializer represents object for *Device serialization.
 type Serializer struct {
 	destination io.Writer
 	Device *Device
 }
 
+// NewSerializer is constructor, returns instance of *Serializer
+// with fields specified
 func NewSerializer(w io.Writer, d *Device) *Serializer {
 	return &Serializer{
 		destination: w,
