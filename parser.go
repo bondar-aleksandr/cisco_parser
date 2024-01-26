@@ -4,18 +4,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/netip"
-	"os"
 	"regexp"
 	"strings"
-)
-
-var (
-	infoLogger  *log.Logger = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
-	warnLogger *log.Logger = log.New(os.Stdout, "WARNING: ", log.Ldate|log.Ltime|log.Lshortfile)
-	errorLogger *log.Logger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 )
 
 var ErrParsigFailed = errors.New("no interfaces found in config")
@@ -86,6 +78,7 @@ func(d *Device) parse() error {
 
 	var intf_name string
 	var intf *CiscoInterface
+	var subnetVrf *subnetVrf
 
 	line_separator := "!"
 	line_ident := " "
@@ -120,6 +113,10 @@ func(d *Device) parse() error {
 				encap := encap_compiled.FindStringSubmatch(line)[1]
 				intf.Encapsulation = encap
 
+			case strings.Contains(line, ` vrf `):
+				vrf := vrf_compiled.FindStringSubmatch(line)[1]
+				intf.Vrf = vrf
+
 			case strings.Contains(line, `ip address `) || strings.Contains(line, `ipv4 address `):
 				ip_cidr, prefix, prefixRaw, err := getIP(scanner.Text(), d.platform)
 				if err != nil {
@@ -130,9 +127,11 @@ func(d *Device) parse() error {
 				intf.Subnet = prefix
 				intf.subnetRaw = prefixRaw
 
-			case strings.Contains(line, ` vrf `):
-				vrf := vrf_compiled.FindStringSubmatch(line)[1]
-				intf.Vrf = vrf
+				subnetVrf = newSubnetVrf(prefixRaw)
+				subnetVrf.addVrf(intf.Vrf)
+				if err := d.addSubnetVrf(subnetVrf, intf.Name); err != nil {
+					return fmt.Errorf("can't parse: %w", err)
+				}
 
 			case strings.Contains(line, ` mtu `):
 				mtu := mtu_compiled.FindStringSubmatch(line)[1]
