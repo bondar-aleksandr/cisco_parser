@@ -1,29 +1,53 @@
 package cisco_parser
 
 import (
-	"encoding/json"
 	"encoding/csv"
-	"io"
+	"encoding/json"
 	"fmt"
+	"io"
+	"slices"
+	"errors"
 )
+
+// slice of supported output formats
+var formatSupported = []string{"csv", "json"}
+
+var ErrUnsupportedOutputFormat = errors.New("output format not supported")
 
 // Serializer represents object for *Device serialization.
 type Serializer struct {
 	destination io.Writer
 	Device *Device
+	format string
 }
 
 // NewSerializer is constructor, returns instance of *Serializer
-// with fields specified
-func NewSerializer(w io.Writer, d *Device) *Serializer {
+// with fields specified.
+func NewSerializer(w io.Writer, d *Device, f string) (*Serializer, error) {
+	if !slices.Contains(formatSupported, f) {
+		return nil, ErrUnsupportedOutputFormat
+	}
 	return &Serializer{
 		destination: w,
 		Device: d,
+		format: f,
+	}, nil
+}
+
+// Serialize serializes data to s.destination based on output format.
+func(s *Serializer) Serialize() error {
+	switch s.format {
+	case "csv":
+		return s.toCSV()
+	case "json":
+		return s.toJSON()
+	default:
+		return nil
 	}
 }
 
 // ToJSON writes device json-formatted data to serializer destination.
-func(s *Serializer) ToJSON() error { 
+func(s *Serializer) toJSON() error { 
 	if !s.Device.parsed {
 		if err := s.Device.parse(); err != nil {
 			return fmt.Errorf("can't serialize: %w", err)
@@ -41,7 +65,7 @@ func(s *Serializer) ToJSON() error {
 
 
 // ToCSV writes device CSV-formatted data to serializer destination.
-func (s *Serializer) ToCSV() error {
+func (s *Serializer) toCSV() error {
 	cw := csv.NewWriter(s.destination)
 	headers, err := s.Device.getIntfFields()
 	if err != nil {
