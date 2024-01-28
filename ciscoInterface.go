@@ -2,7 +2,6 @@ package cisco_parser
 
 import (
 	"reflect"
-	"net/netip"
 )
 
 // CiscoInterface represents single interface from cisco configuration data
@@ -12,7 +11,6 @@ type CiscoInterface struct {
 	Encapsulation string
 	Ip_addr     string
 	Subnet      string
-	subnetRaw	netip.Prefix `csv:"skip"`
 	Vrf         string
 	Mtu         string
 	ACLin       string
@@ -30,9 +28,10 @@ func(c *CiscoInterface) getFileds() []string {
 	fields := reflect.VisibleFields(reflect.TypeOf(*c))
 	result := []string{}
 	for _, v := range fields {
-		if v.Tag.Get("csv") == "skip" {
-			continue
-		}
+		// for case we don't need certain field to be serialized
+		// if v.Tag.Get("serialize") == "skip" {
+		// 	continue
+		// }
 		result = append(result, v.Name)
 	}
 	return result
@@ -45,9 +44,10 @@ func(c *CiscoInterface) getValues() []string {
 
 	e := reflect.ValueOf(c).Elem()
 	for i:= 0; i < e.NumField(); i++ {
-		if e.Type().Field(i).Tag.Get("csv") == "skip" {
-			continue
-		}
+		// for case we don't need certain field to be serialized
+		// if e.Type().Field(i).Tag.Get("serialize") == "skip" {
+		// 	continue
+		// }
 		value := e.Field(i).Interface().(string)
 		result = append(result, value)
 	}

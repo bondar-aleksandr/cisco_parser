@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/netip"
 	"os"
 	"slices"
 	"strings"
@@ -32,7 +33,7 @@ type Device struct {
 	platform   string
 	parsed     bool
 	Interfaces map[string]*CiscoInterface
-	subnets    map[*subnetVrf]string
+	subnets    map[netip.Prefix]*intfVrfList
 }
 
 // NewDevice is constructor for Device object. Returns instance of Device with
@@ -52,7 +53,7 @@ func NewDevice(s io.Reader, p string) (*Device, error) {
 		platform:   platform,
 		parsed:     false,
 		Interfaces: make(map[string]*CiscoInterface),
-		subnets:    make(map[*subnetVrf]string),
+		subnets:    make(map[netip.Prefix]*intfVrfList),
 	}, nil
 }
 
@@ -103,16 +104,23 @@ func (d *Device) intfAmount() int {
 	return len(d.Interfaces)
 }
 
-func (d *Device) addSubnetVrf(s *subnetVrf, intf string) error {
-	_, exists := d.subnets[s]
+// addSubnet adds subnet to device. The function checks whether subnet
+// already exists, and if so, adds *intfVrf object to the subnet corresponding intfVrfList.
+// Otherwise, if subnet not listed in device.subnets, the function creates intfVrfList
+// and adds subnet with newly created intfVrfList to device.subnets
+func (d *Device) addSubnet(p netip.Prefix, i *intfVrf) {
+	_, exists := d.subnets[p]
 	if !exists {
-		d.subnets[s] = intf
-		return nil
+		il := newInterfaceVrfList()
+		il.addItem(i)
+		d.subnets[p] = il
 	} else {
-		return ErrDublicateInterface
+		il := d.subnets[p]
+		il.addItem(i)
 	}
 }
 
+// For testing purposes
 func (d *Device) GetSubnets() (string, error) {
 	if !d.parsed {
 		if err := d.parse(); err != nil {
@@ -121,8 +129,17 @@ func (d *Device) GetSubnets() (string, error) {
 	}
 	result := strings.Builder{}
 	for k, v := range d.subnets {
-		line := fmt.Sprintf("%s interface: %s\n", k.String(), v)
+		line := fmt.Sprintf("\tsubnet: %q\n%s", k, v.String())
 		result.WriteString(line)
 	}
 	return result.String(), nil
+}
+
+func (d *Device) GetSubnet(p netip.Prefix) *intfVrfList {
+	_, exists := d.subnets[p]
+	if !exists {
+		return nil
+	} else {
+		return d.subnets[p]
+	}
 }

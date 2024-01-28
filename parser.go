@@ -72,13 +72,12 @@ func getIP(s string, d string) (ip_addr, subnet string, subnetRaw netip.Prefix, 
 	return
 }
 
-// parse parses config from d.source and populates internal fields "interfaces"
-// TBD: populate subnets structure as well
+// parse parses config from d.source and populates internal fields d.interfaces and d.subnets
 func(d *Device) parse() error {
 
 	var intf_name string
 	var intf *CiscoInterface
-	var subnetVrf *subnetVrf
+	var intfVrf *intfVrf
 
 	line_separator := "!"
 	line_ident := " "
@@ -125,13 +124,10 @@ func(d *Device) parse() error {
 				}
 				intf.Ip_addr = ip_cidr
 				intf.Subnet = prefix
-				intf.subnetRaw = prefixRaw
 
-				subnetVrf = newSubnetVrf(prefixRaw)
-				subnetVrf.addVrf(intf.Vrf)
-				if err := d.addSubnetVrf(subnetVrf, intf.Name); err != nil {
-					return fmt.Errorf("can't parse: %w", err)
-				}
+				intfVrf = newInterfaceVrf(intf.Name)
+				intfVrf.addVrf(intf.Vrf)
+				d.addSubnet(prefixRaw, intfVrf)
 
 			case strings.Contains(line, ` mtu `):
 				mtu := mtu_compiled.FindStringSubmatch(line)[1]
