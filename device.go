@@ -32,6 +32,7 @@ type Device struct {
 	source     io.Reader
 	platform   string
 	parsed     bool
+	Hostname   string
 	Interfaces map[string]*CiscoInterface
 	subnets    map[netip.Prefix]*intfVrfList
 }

@@ -14,6 +14,7 @@ var ErrParsigFailed = errors.New("no interfaces found in config")
 
 
 const (
+	hostname_regexp = `hostname (\S+)`
 	intf_regexp   = `^interface (\S+)`
 	desc_regexp   = ` {1,2}description (.*)$`
 	encap_regexp  = ` {1,2}encapsulation (.+)`
@@ -26,6 +27,7 @@ const (
 )
 
 var (
+	hostname_compiled = regexp.MustCompile(hostname_regexp)
 	intf_compiled   = regexp.MustCompile(intf_regexp)
 	desc_compiled   = regexp.MustCompile(desc_regexp)
 	encap_compiled  = regexp.MustCompile(encap_regexp)
@@ -93,7 +95,11 @@ func(d *Device) parse() error {
 		line := strings.TrimRight(scanner.Text(), " ")
 		// fmt.Println(line)	// for debug
 
-		if strings.HasPrefix(line, `interface `) { //Enter interface configuration block
+		if strings.HasPrefix(line, `hostname `) {	// parse hostname
+			hostname := hostname_compiled.FindStringSubmatch(line)[1]
+			d.Hostname = hostname
+
+		} else if strings.HasPrefix(line, `interface `) { //Enter interface configuration block
 			
 			intf_name = intf_compiled.FindStringSubmatch(line)[1]
 			intf = newCiscoInterface(intf_name)
