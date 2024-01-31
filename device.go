@@ -8,7 +8,6 @@ import (
 	"net/netip"
 	"os"
 	"slices"
-	"strings"
 )
 
 const (
@@ -34,7 +33,7 @@ type Device struct {
 	parsed     bool
 	Hostname   string
 	Interfaces map[string]*CiscoInterface
-	subnets    map[netip.Prefix]*intfVrfList
+	subnets    map[netip.Prefix]*IntfVrfList
 }
 
 // NewDevice is constructor for Device object. Returns instance of Device with
@@ -54,7 +53,7 @@ func NewDevice(s io.Reader, p string) (*Device, error) {
 		platform:   platform,
 		parsed:     false,
 		Interfaces: make(map[string]*CiscoInterface),
-		subnets:    make(map[netip.Prefix]*intfVrfList),
+		subnets:    make(map[netip.Prefix]*IntfVrfList),
 	}, nil
 }
 
@@ -121,26 +120,33 @@ func (d *Device) addSubnet(p netip.Prefix, i *intfVrf) {
 	}
 }
 
-// For testing purposes
-func (d *Device) GetSubnets() (string, error) {
+// GetSubnets returns slice of all subnets found in interface configuration
+// and error if any.
+func (d *Device) GetSubnets() ([]netip.Prefix, error) {
+	result := []netip.Prefix{}
 	if !d.parsed {
 		if err := d.parse(); err != nil {
-			return "", fmt.Errorf("can't get interfaces: %w", err)
+			return result, fmt.Errorf("can't get interfaces: %w", err)
 		}
 	}
-	result := strings.Builder{}
-	for k, v := range d.subnets {
-		line := fmt.Sprintf("\tsubnet: %q\n%s", k, v.String())
-		result.WriteString(line)
+	for k := range d.subnets {
+		result = append(result, k)
 	}
-	return result.String(), nil
+	return result, nil
 }
 
-func (d *Device) GetSubnet(p netip.Prefix) *intfVrfList {
+// GetSubnetData returns IntfVrfList data, which 
+// belongs to specified prefix p
+func (d *Device) GetSubnetData(p netip.Prefix) (*IntfVrfList, error) {
+	if !d.parsed {
+		if err := d.parse(); err != nil {
+			return  nil, fmt.Errorf("can't get interfaces: %w", err)
+		}
+	}
 	_, exists := d.subnets[p]
 	if !exists {
-		return nil
+		return nil, nil
 	} else {
-		return d.subnets[p]
+		return d.subnets[p], nil
 	}
 }

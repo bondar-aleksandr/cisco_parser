@@ -29,32 +29,28 @@ func(i *intfVrf) addVrf(v string) {
 }
 
 // intfVrfList represents all intfVrf objects, which belong to same subnet
-type intfVrfList struct {
+type IntfVrfList struct {
 	items []*intfVrf
 }
 
 // newInterfaceVrfList is a constructor for intfVrfList
-func newInterfaceVrfList() *intfVrfList {
-	return &intfVrfList{
+func newInterfaceVrfList() *IntfVrfList {
+	return &IntfVrfList{
 		items: make([]*intfVrf, 0),
 	}
 }
 
 // addItem adds intfVrf to intfVrfList
-func(il *intfVrfList) addItem(i *intfVrf) {
+func(il *IntfVrfList) addItem(i *intfVrf) {
 	il.items = append(il.items, i)
 }
 
 // String representation of intfVrfList
-func(il *intfVrfList) String() string {
+func(il *IntfVrfList) String() string {
 	result := strings.Builder{}
-	line := "--------\n"
-	result.WriteString(line)
 	for _, v := range il.items {
-		line = v.String()
+		line := v.String()
 		result.WriteString(line)
 	}
-	line = "--------\n"
-	result.WriteString(line)
 	return result.String()
 }
