@@ -20,7 +20,7 @@ func newInterfaceVrf(intf string) *intfVrf {
 
 // String representation of intfVrf
 func(i *intfVrf) String() string {
-	return fmt.Sprintf("interface: %q, vrf: %q\n", i.intf, i.vrf)
+	return fmt.Sprintf("interface: %q, vrf: %q", i.intf, i.vrf)
 }
 
 // addVrf adds VRF info to intfVrf object
@@ -47,10 +47,9 @@ func(il *IntfVrfList) addItem(i *intfVrf) {
 
 // String representation of intfVrfList
 func(il *IntfVrfList) String() string {
-	result := strings.Builder{}
+	result := []string{}
 	for _, v := range il.items {
-		line := v.String()
-		result.WriteString(line)
+		result = append(result, v.String())
 	}
-	return result.String()
+	return strings.Join(result, "\n")
 }
