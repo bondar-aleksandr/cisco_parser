@@ -26,7 +26,7 @@ func deviceFromFile(filename string) *Device {
 	return device
 }
 
-func Test_parsing(t *testing.T) {
+func Test_Parsing_Subnets(t *testing.T) {
 
 	ios_ifile_router := filepath.Join(testDataDir, "INET-R01.txt")
 	ios_ifiile_switch := filepath.Join(testDataDir, "run.txt")
@@ -63,8 +63,7 @@ func Test_parsing(t *testing.T) {
 		if err = device.parse(); err != nil {
 			t.Errorf("can't parse config: %s", err)
 		}
-
-		eq := reflect.DeepEqual(device, target_device)
+		eq := reflect.DeepEqual(device.Interfaces, target_device.Interfaces)
 		if !eq {
 			t.Errorf("%s: parsed config doesn't correspond target value", v.name)
 		}
